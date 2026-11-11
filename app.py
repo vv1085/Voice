@@ -1,37 +1,51 @@
-
 import os
+
 import gradio as gr
 import numpy as np
 
-from voice_backend import *
+from voice_backend import (
+    VOICE_FINAL_GRID,
+    VOICEApplication,
+    VOICEP300Classifier,
+)
 
 # --------------------------------------------------
 # VOICE DEPLOYMENT INITIALIZATION
 # --------------------------------------------------
 
+# Calibration data (.npz with arrays "X" and "y") used to train the P300
+# classifier at startup. Override the location with VOICE_CALIBRATION_PATH.
+CALIBRATION_PATH = os.environ.get("VOICE_CALIBRATION_PATH", "calibration.npz")
+
+
 def initialize_voice():
+    """Train the classifier from calibration data and build the application.
 
-    required = [
-        "VOICEApplication",
-        "VOICEP300Classifier",
-        "VOICE_FINAL_CONFIG",
-        "VOICE_FINAL_GRID",
-        "VOICEMessagingEngine",
-        "VOICESessionManager",
-        "VOICEErrorRecovery"
-    ]
+    Returns (application, status_message). If calibration data is missing the
+    application is None and the message explains what to provide, so the web
+    UI can still start instead of crashing.
+    """
 
-    missing = [name for name in required if name not in globals()]
-
-    if missing:
-        raise RuntimeError(
-            "Missing backend components: " + ", ".join(missing)
+    if not os.path.exists(CALIBRATION_PATH):
+        return None, (
+            f"⚠️ Calibration data not found at `{CALIBRATION_PATH}`. "
+            "Provide an .npz file with arrays `X` and `y`, or set "
+            "`VOICE_CALIBRATION_PATH`."
         )
 
-    raise RuntimeError(
-        "Deployment initialization needs the trained classifier "
-        "and its saved model. Connect those before launching."
-    )
+    try:
+        with np.load(CALIBRATION_PATH, allow_pickle=False) as data:
+            X, y = data["X"], data["y"]
+
+        classifier = VOICEP300Classifier().fit(X, y)
+        application = VOICEApplication(classifier=classifier)
+    except Exception as error:
+        return None, f"⚠️ Backend initialization failed: {error}"
+
+    return application, "✅ Classifier trained. Backend ready."
+
+
+voice_application, voice_status = initialize_voice()
 
 
 # --------------------------------------------------
@@ -49,12 +63,11 @@ with gr.Blocks(title="VOICE | Adaptive EEG Communication") as demo:
         """
     )
 
-    status = gr.Markdown(
-        "⚠️ Backend initialization pending."
-    )
+    status = gr.Markdown(voice_status)
 
     message = gr.Textbox(
         label="Composed message",
+        value=getattr(voice_application, "message", "") if voice_application else "",
         lines=4,
         interactive=True
     )
@@ -62,19 +75,16 @@ with gr.Blocks(title="VOICE | Adaptive EEG Communication") as demo:
     gr.Markdown("### Character Grid")
 
     grid = gr.Dataframe(
-        value=VOICE_FINAL_GRID if "VOICE_FINAL_GRID" in globals()
-        else [list("ABCDEF"), list("GHIJKL"), list("MNOPQR"),
-              list("STUVWX"), list("YZ0123"), list("456789")],
+        value=VOICE_FINAL_GRID,
         interactive=False,
-        headers=None,
-        row_count=6,
-        col_count=6
+        headers=None
     )
 
-    gr.Markdown(
-        "The EEG decoder and session controls will be enabled "
-        "after the trained model is connected."
-    )
+    if voice_application is None:
+        gr.Markdown(
+            "The EEG decoder and session controls will be enabled "
+            "after the calibration data is connected."
+        )
 
 if __name__ == "__main__":
     demo.launch(
