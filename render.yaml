@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: voice-p300
+    runtime: python
+    plan: free
+    buildCommand: bash render_build.sh
+    startCommand: python app.py
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      # bnci = download BNCI2014-008 and train during the build (default).
+      # synthetic = offline test data, clearly labelled in the app.
+      - key: VOICE_BUILD_SOURCE
+        value: bnci
+      - key: GRADIO_ANALYTICS_ENABLED
+        value: "False"
