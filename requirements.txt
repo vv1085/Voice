@@ -1,4 +1,0 @@
-# Runtime: what the Gradio web app needs on Render.
-gradio==6.32.0
-numpy>=1.26,<3
-pandas>=2.1,<4
