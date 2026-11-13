@@ -1,0 +1,10 @@
+voila==0.5.8
+ipywidgets>=8.1,<9
+numpy
+pandas
+scipy
+matplotlib
+scikit-learn
+mne
+moabb
+seaborn
